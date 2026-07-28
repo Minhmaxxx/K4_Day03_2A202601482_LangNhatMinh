@@ -24,9 +24,11 @@ def _contains(normalized_text: str, phrase: str) -> bool:
 
 TRAIT_LEXICON: Dict[str, List[str]] = {
     "huong_ngoai": ["đông người", "đi tiệc", "tiệc tùng", "bạn bè", "nói chuyện",
-                    "sôi nổi", "kết bạn", "thuyết trình", "ồn ào", "rủ rê"],
+                    "sôi nổi", "kết bạn", "thuyết trình", "ồn ào", "rủ rê",
+                    "hòa đồng", "thích giao tiếp"],
     "huong_noi": ["một mình", "yên tĩnh", "im lặng", "ở nhà", "ngại giao tiếp",
-                  "né tránh", "riêng tư", "trầm tính", "ít nói"],
+                  "né tránh", "riêng tư", "trầm tính", "ít nói", "ở một mình",
+                  "nhốt mình"],
     "ky_tinh": ["kế hoạch", "danh sách", "gọn gàng", "đúng giờ", "chi tiết",
                 "kiểm tra lại", "hoàn hảo", "ngăn nắp", "kỷ luật"],
     "phieu_luu": ["phiêu lưu", "thử điều mới", "sáng tạo", "tưởng tượng",
@@ -78,7 +80,8 @@ HIGH_RISK_SIGNALS = [
 MEDIUM_RISK_SIGNALS = [
     "trầm cảm", "mất ngủ nhiều", "khóc suốt", "vô vọng", "kiệt sức",
     "hoảng loạn", "lo âu nặng", "không thiết ăn", "cô độc hoàn toàn",
-    "rối loạn ăn uống", "nghe thấy giọng nói", "vô dụng",
+    "rối loạn ăn uống", "nghe thấy giọng nói", "vô dụng", "quá mệt mỏi",
+    "quá tải", "biến mất một thời gian",
 ]
 
 PSYCHOLOGY_GLOSSARY = {
@@ -135,6 +138,22 @@ REFLECTION_BANK = {
 }
 
 
+def _matching_signals(user_text: str, signals: List[str]) -> List[str]:
+    if not user_text or not isinstance(user_text, str):
+        return []
+    norm = _normalize(user_text)
+    return [signal for signal in signals if _contains(norm, signal)]
+
+
+def assess_risk_level(user_text: str) -> str:
+    """Return HIGH, MEDIUM or LOW for the application-level safety gate."""
+    if _matching_signals(user_text, HIGH_RISK_SIGNALS):
+        return "HIGH"
+    if _matching_signals(user_text, MEDIUM_RISK_SIGNALS):
+        return "MEDIUM"
+    return "LOW"
+
+
 def screen_risk_signals(user_text: str) -> str:
     """
     Sang loc dau hieu khung hoang tam ly trong loi nguoi dung.
@@ -145,12 +164,7 @@ def screen_risk_signals(user_text: str) -> str:
     Returns:
         str: RISK_LEVEL=HIGH, MEDIUM hoac LOW kem huong xu ly.
     """
-    if not user_text or not isinstance(user_text, str):
-        return "RISK_LEVEL=LOW | Không có nội dung để sàng lọc."
-
-    norm = _normalize(user_text)
-
-    hits = [s for s in HIGH_RISK_SIGNALS if _contains(norm, s)]
+    hits = _matching_signals(user_text, HIGH_RISK_SIGNALS)
     if hits:
         return (
             "RISK_LEVEL=HIGH\n"
@@ -161,7 +175,7 @@ def screen_risk_signals(user_text: str) -> str:
             "get_support_resources['vietnam']."
         )
 
-    hits = [s for s in MEDIUM_RISK_SIGNALS if _contains(norm, s)]
+    hits = _matching_signals(user_text, MEDIUM_RISK_SIGNALS)
     if hits:
         return (
             "RISK_LEVEL=MEDIUM\n"
@@ -184,23 +198,12 @@ def get_support_resources(region: str = "vietnam") -> str:
     Returns:
         str: Danh sach kenh ho tro, hoac chuoi bat dau bang "LOI:".
     """
-    if _normalize(region) not in ("vietnam", "vn", "viet nam"):
-        return (
-            f"LOI: Chưa có dữ liệu kênh hỗ trợ cho khu vực '{region}'. Hãy khuyên "
-            "người dùng liên hệ cơ sở y tế gần nhất hoặc một người thân mà họ tin "
-            "tưởng."
-        )
-
     return (
-        "KÊNH HỖ TRỢ TẠI VIỆT NAM:\n"
-        "1. Cấp cứu y tế: 115, dùng khi có nguy hiểm tức thời đến tính mạng.\n"
-        "2. Tổng đài Quốc gia Bảo vệ Trẻ em: 111, miễn phí, hoạt động 24/7, dành "
-        "cho người dưới 18 tuổi hoặc trường hợp bị bạo hành, xâm hại.\n"
-        "3. Phòng tư vấn tâm lý của trường, hoặc bệnh viện có khoa Tâm thần - Tâm "
-        "lý gần nơi ở.\n"
-        "4. Một người thân hoặc bạn bè mà người dùng tin tưởng.\n"
-        "CÁCH TRUYỀN ĐẠT: nói ngắn, không phán xét, không hứa bảo mật tuyệt đối, "
-        "không mô tả phương thức gây hại."
+        f"KÊNH HỖ TRỢ CHO KHU VỰC '{region}':\n"
+        "1. Dịch vụ khẩn cấp tại nơi người dùng đang ở nếu có nguy hiểm tức thời.\n"
+        "2. Cơ sở y tế hoặc chuyên gia sức khỏe tâm thần gần nhất.\n"
+        "3. Một người thân, bạn bè hoặc người lớn đáng tin cậy có thể ở bên ngay.\n"
+        "Không tự tạo số hotline khi chưa có nguồn đã được xác minh."
     )
 
 
@@ -336,7 +339,6 @@ def suggest_reflection_exercise(theme: str) -> str:
 
 
 AVAILABLE_TOOLS = {
-    "screen_risk_signals": screen_risk_signals,
     "analyze_personality_signals": analyze_personality_signals,
     "get_shadow_profile": get_shadow_profile,
     "lookup_psychology_concept": lookup_psychology_concept,
@@ -345,8 +347,6 @@ AVAILABLE_TOOLS = {
 }
 
 TOOL_SPECS = [
-    ("screen_risk_signals[user_text]",
-     "Bat buoc goi dau tien. Sang loc dau hieu khung hoang tam ly."),
     ("analyze_personality_signals[user_text]",
      "Rut tin hieu tinh cach tu doan nguoi dung tu mo ta."),
     ("get_shadow_profile[dominant_trait]",

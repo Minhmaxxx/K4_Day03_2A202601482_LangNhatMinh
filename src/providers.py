@@ -76,7 +76,7 @@ class GeminiProvider(BaseLLMProvider):
                 return f"[Gemini API Error {res.status_code}]: {res.text}"
 
             parts = res.json().get("candidates", [{}])[0].get("content", {}).get("parts", [])
-            text = "".join(part.get("text", "") for part in parts)
+            text = "".join(part.get("text", "") for part in parts).strip()
             return text or "[Gemini Error]: API không trả về nội dung phản hồi."
         except Exception as e:
             return f"[Gemini Exception]: {str(e)}"
@@ -189,11 +189,81 @@ class OpenRouterProvider(BaseLLMProvider):
 
 class MockProvider(BaseLLMProvider):
     """Offline Mock Provider (Cho bài test không cần kết nối API)"""
+
+    @staticmethod
+    def _action(tool_name: str, argument: str) -> str:
+        payload = json.dumps(
+            {"tool": tool_name, "args": [argument]},
+            ensure_ascii=False,
+        )
+        return f"Thought: Cần lấy dữ liệu từ công cụ trước.\nAction: {payload}"
+
+    def _generate_react(self, prompt: str) -> str:
+        question = prompt.split("Question:", 1)[-1].split("\n\nAssistant:", 1)[0].strip()
+        lower_question = question.casefold()
+
+        if "Observation:" not in prompt:
+            concept_map = {
+                "nhân cách thứ 2": "nhan cach thu hai",
+                "shadow self": "shadow self",
+                "đa nhân cách": "da nhan cach",
+                "did": "did",
+                "mbti": "mbti",
+                "big five": "big five",
+                "trầm cảm": "tram cam",
+            }
+            for phrase, term in concept_map.items():
+                if phrase in lower_question:
+                    return self._action("lookup_psychology_concept", term)
+            if "bài tập" in lower_question or "phản tư" in lower_question:
+                return self._action("suggest_reflection_exercise", "cam_xuc")
+            return self._action("analyze_personality_signals", question)
+
+        observation = prompt.rsplit("Observation:", 1)[1].strip()
+        if "TRAIT_TROI_NHAT =" in observation:
+            trait_line = next(
+                line for line in observation.splitlines() if "TRAIT_TROI_NHAT =" in line
+            )
+            trait = trait_line.split("=", 1)[1].strip()
+            return self._action("get_shadow_profile", trait)
+        if "MẶT ÍT BỘC LỘ:" in observation:
+            profile = observation.splitlines()[0].split(":", 1)[1].strip()
+            return (
+                "Thought: Tôi đã có đủ dữ liệu để phản hồi.\n"
+                "Final Answer: Góc nhìn từ các dấu hiệu bạn tự chia sẻ gợi ý rằng "
+                f"bạn có thể ít bộc lộ phần {profile}. Hãy xem đây như một câu hỏi "
+                "tự khám phá: khi nào bạn cảm thấy an toàn để thể hiện phần này?"
+            )
+        if "ĐỊNH NGHĨA" in observation:
+            return (
+                "Thought: Tôi đã có đủ dữ liệu để phản hồi.\n"
+                f"Final Answer: {observation}"
+            )
+        if "BÀI TẬP PHẢN TƯ" in observation:
+            return (
+                "Thought: Tôi đã có đủ dữ liệu để phản hồi.\n"
+                f"Final Answer: Bạn có thể thử bài tập sau:\n{observation}"
+            )
+        if "KHÔNG RÕ TÍN HIỆU" in observation or "LOI:" in observation:
+            return (
+                "Thought: Dữ liệu chưa đủ để kết luận.\n"
+                "Final Answer: Mình chưa có đủ dấu hiệu để gợi mở một góc nhìn. "
+                "Bạn có thể kể thêm một thói quen, cảm xúc hoặc tình huống gần đây."
+            )
+        return (
+            "Thought: Tôi đã có đủ dữ liệu để phản hồi.\n"
+            "Final Answer: Cảm ơn bạn đã chia sẻ. Hãy xem kết quả này như một gợi ý "
+            "để tự phản chiếu, không phải kết luận cố định về con người bạn."
+        )
+
     def generate(self, prompt: str, system_prompt: str = "") -> str:
         text = prompt.lower()
         system_text = system_prompt.lower()
 
-        if "khai quật nhân cách" in system_text:
+        if "react_protocol" in system_text:
+            return self._generate_react(prompt)
+
+        if "tự phản chiếu" in system_text:
             crisis_signals = (
                 "tự tử",
                 "muốn chết",
@@ -219,8 +289,6 @@ class MockProvider(BaseLLMProvider):
                 "nạp lại năng lượng."
             )
 
-        if "thời tiết" in text and "hà nội" in text:
-            return "Thought: Cần tra cứu thời tiết Hà Nội.\nAction: get_weather['Hà Nội']"
         return "🤖 [Mock Provider]: Phản hồi giả lập offline cho bài test."
 
 
