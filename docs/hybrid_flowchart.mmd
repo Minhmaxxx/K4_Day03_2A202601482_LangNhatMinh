@@ -1,0 +1,22 @@
+flowchart TD
+    A([Người dùng gửi câu hỏi]) --> B{Phân loại độ phức tạp}
+
+    B -->|Câu hỏi đơn giản| C[Chatbot Path]
+    C --> D[LLM trả lời trực tiếp]
+    D --> E([Trả lời người dùng])
+
+    B -->|Câu hỏi phức tạp| F[ReAct Agent Path]
+    F --> G[Thought: Phân tích yêu cầu]
+    G --> H[Action: Gọi công cụ]
+    H --> I[Observation: Nhận kết quả]
+    I --> J{Đã đủ thông tin?}
+    J -->|Chưa| G
+    J -->|Rồi| K[Tổng hợp Final Answer]
+    K --> E
+
+    classDef chatbot fill:#dbeafe,stroke:#2563eb,color:#1e3a8a;
+    classDef react fill:#ede9fe,stroke:#7c3aed,color:#4c1d95;
+    classDef decision fill:#fef3c7,stroke:#d97706,color:#78350f;
+    class C,D chatbot;
+    class F,G,H,I,J,K react;
+    class B decision;
