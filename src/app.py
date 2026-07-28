@@ -178,11 +178,20 @@ def _ensure_disclaimer(answer: str) -> str:
     return f"{answer.rstrip()}\n\n{DISCLAIMER}"
 
 
-def run_react_agent(user_query: str, provider):
+def run_react_agent(user_query: str, provider, trace=None):
     """Run a bounded Thought -> Action -> Observation loop."""
+    trace = trace if trace is not None else []
     risk_level, safety_response = safety_response_for(user_query)
     if safety_response:
         label = "HỖ TRỢ KHẨN CẤP" if risk_level == "HIGH" else "HỖ TRỢ GIẢM TẢI"
+        trace.append(
+            {
+                "step": 1,
+                "kind": "safety",
+                "label": label.title(),
+                "observation": safety_response,
+            }
+        )
         print(f"\n🛟 [{label}]\n{safety_response}")
         return safety_response
 
@@ -199,18 +208,51 @@ def run_react_agent(user_query: str, provider):
             response_type, payload = parse_agent_response(response)
         except ValueError as error:
             observation = f"LOI_PARSER: {error}"
+            trace.append(
+                {
+                    "step": step,
+                    "kind": "error",
+                    "label": "Hiệu chỉnh định dạng",
+                    "observation": observation,
+                }
+            )
         else:
             if response_type == "final":
                 final_answer = _ensure_disclaimer(payload)
+                trace.append(
+                    {
+                        "step": step,
+                        "kind": "final",
+                        "label": "Tổng hợp câu trả lời",
+                    }
+                )
                 print(f"\n🏁 Final Answer:\n{final_answer}")
                 return final_answer
             observation = execute_agent_action(payload, action_history)
+            trace.append(
+                {
+                    "step": step,
+                    "kind": "tool",
+                    "label": payload["tool"],
+                    "tool": payload["tool"],
+                    "args": payload["args"],
+                    "observation": observation,
+                }
+            )
 
         print(f"👁️ Observation: {observation}")
         transcript += f"\n\nAssistant:\n{response}\nObservation: {observation}"
 
     print(f"\n🛡️ GUARDRAIL: Đã đạt MAX_ITERATIONS={MAX_ITERATIONS}.")
     print(f"🏁 Safe Fallback:\n{AGENT_FALLBACK_RESPONSE}")
+    trace.append(
+        {
+            "step": MAX_ITERATIONS,
+            "kind": "guardrail",
+            "label": "Dừng tại giới hạn an toàn",
+            "observation": AGENT_FALLBACK_RESPONSE,
+        }
+    )
     return AGENT_FALLBACK_RESPONSE
 
 

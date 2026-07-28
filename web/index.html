@@ -1,0 +1,713 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Nhân cách thứ 2 | Trợ lý tự phản chiếu</title>
+  <style>
+    :root {
+      --ink: #26332e;
+      --muted: #66736d;
+      --paper: #f7f4ed;
+      --paper-deep: #eee9dd;
+      --sage: #496b5c;
+      --sage-soft: #dce6dd;
+      --clay: #b7745e;
+      --line: rgba(46, 65, 57, 0.13);
+      --white: rgba(255, 255, 255, 0.78);
+      --shadow: 0 24px 70px rgba(49, 62, 55, 0.11);
+      --radius-lg: 30px;
+      --radius-md: 20px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 8% 10%, rgba(183, 116, 94, 0.12), transparent 28%),
+        radial-gradient(circle at 92% 90%, rgba(73, 107, 92, 0.16), transparent 32%),
+        var(--paper);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      overflow-x: hidden;
+    }
+
+    body::before,
+    body::after {
+      content: "";
+      position: fixed;
+      z-index: -1;
+      border: 1px solid rgba(73, 107, 92, 0.15);
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    body::before { width: 320px; height: 320px; top: -180px; right: 12%; }
+    body::after { width: 190px; height: 190px; bottom: -105px; left: 5%; }
+
+    button, textarea { font: inherit; }
+    button { color: inherit; }
+
+    .app {
+      width: min(1180px, calc(100% - 36px));
+      height: min(820px, calc(100vh - 36px));
+      min-height: 620px;
+      margin: 18px auto;
+      display: grid;
+      grid-template-columns: 320px minmax(0, 1fr);
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.82);
+      border-radius: var(--radius-lg);
+      background: rgba(250, 248, 242, 0.76);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+    }
+
+    .sidebar {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      padding: 34px 30px;
+      overflow: hidden;
+      border-right: 1px solid var(--line);
+      background: linear-gradient(165deg, rgba(226, 233, 224, 0.9), rgba(239, 234, 223, 0.72));
+    }
+
+    .sidebar::after {
+      content: "";
+      position: absolute;
+      width: 210px;
+      height: 210px;
+      right: -120px;
+      bottom: 45px;
+      border: 36px solid rgba(255, 255, 255, 0.25);
+      border-radius: 50%;
+    }
+
+    .brand { position: relative; z-index: 1; }
+    .brand-mark {
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      margin-bottom: 24px;
+      border-radius: 15px;
+      color: white;
+      background: var(--sage);
+      box-shadow: 0 10px 28px rgba(73, 107, 92, 0.24);
+    }
+
+    .brand-mark::before {
+      content: "";
+      width: 16px;
+      height: 21px;
+      border: 2px solid currentColor;
+      border-top-left-radius: 14px;
+      border-bottom-right-radius: 14px;
+      transform: rotate(28deg);
+    }
+
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--sage);
+      font-size: 11px;
+      font-weight: 750;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(30px, 4vw, 42px);
+      font-weight: 500;
+      letter-spacing: -0.04em;
+      line-height: 1.02;
+    }
+
+    .intro {
+      margin: 16px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    .suggestions {
+      position: relative;
+      z-index: 1;
+      margin-top: 36px;
+    }
+
+    .suggestions h2 {
+      margin: 0 0 12px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .prompt-chip {
+      width: 100%;
+      margin: 0 0 9px;
+      padding: 12px 14px;
+      border: 1px solid rgba(73, 107, 92, 0.13);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.52);
+      text-align: left;
+      font-size: 13px;
+      line-height: 1.45;
+      cursor: pointer;
+      transition: transform 160ms ease, background 160ms ease, border-color 160ms ease;
+    }
+
+    .prompt-chip:hover {
+      transform: translateX(3px);
+      border-color: rgba(73, 107, 92, 0.32);
+      background: rgba(255, 255, 255, 0.86);
+    }
+
+    .safety-note {
+      position: relative;
+      z-index: 1;
+      margin-top: auto;
+      padding-top: 22px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.55;
+    }
+
+    .chat-panel {
+      min-width: 0;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.38);
+    }
+
+    .chat-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 20px 26px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .status { display: flex; align-items: center; min-width: 0; gap: 10px; }
+    .status-dot {
+      width: 9px;
+      height: 9px;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      background: #6f9b7d;
+      box-shadow: 0 0 0 5px rgba(111, 155, 125, 0.12);
+    }
+
+    .status-copy { min-width: 0; }
+    .status-copy strong { display: block; font-size: 13px; }
+    .status-copy span {
+      display: block;
+      overflow: hidden;
+      color: var(--muted);
+      font-size: 11px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .compare-label {
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(238, 233, 221, 0.62);
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+
+    .comparison {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1px;
+      overflow: hidden;
+      background: var(--line);
+    }
+
+    .lane {
+      min-width: 0;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      overflow: hidden;
+      background: rgba(250, 248, 242, 0.9);
+    }
+
+    .lane.agent-lane { background: rgba(241, 246, 241, 0.9); }
+
+    .lane-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 13px 20px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.46);
+    }
+
+    .lane-title { display: flex; align-items: center; gap: 9px; font-size: 13px; font-weight: 760; }
+    .lane-number {
+      width: 24px;
+      height: 24px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      color: var(--sage);
+      background: var(--sage-soft);
+      font-family: Georgia, serif;
+      font-size: 12px;
+    }
+    .lane-meta { color: var(--muted); font-size: 10px; }
+
+    .messages {
+      min-height: 0;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      padding: 22px;
+      scroll-behavior: smooth;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .message {
+      display: flex;
+      margin: 0 0 20px;
+      animation: rise 260ms ease both;
+    }
+
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(7px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .message.user { justify-content: flex-end; }
+    .bubble {
+      max-width: min(620px, 86%);
+      padding: 15px 18px;
+      border-radius: 8px 20px 20px 20px;
+      background: var(--white);
+      box-shadow: 0 6px 24px rgba(50, 64, 57, 0.06);
+      white-space: pre-wrap;
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    .user .bubble {
+      border-radius: 20px 8px 20px 20px;
+      color: white;
+      background: var(--sage);
+      box-shadow: 0 8px 24px rgba(73, 107, 92, 0.17);
+    }
+
+    .bubble-label {
+      display: block;
+      margin-bottom: 7px;
+      color: var(--clay);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.11em;
+      text-transform: uppercase;
+    }
+
+    .user .bubble-label { color: rgba(255, 255, 255, 0.67); text-align: right; }
+
+    .thinking { display: inline-flex; gap: 5px; align-items: center; min-height: 21px; }
+    .thinking i {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--sage);
+      animation: breathe 1.15s infinite ease-in-out;
+    }
+    .thinking i:nth-child(2) { animation-delay: 140ms; }
+    .thinking i:nth-child(3) { animation-delay: 280ms; }
+    @keyframes breathe { 0%, 70%, 100% { opacity: .25; transform: translateY(0); } 35% { opacity: 1; transform: translateY(-3px); } }
+
+    .agent-steps {
+      margin: 0 0 20px;
+      padding: 15px;
+      border: 1px solid rgba(73, 107, 92, 0.16);
+      border-radius: 17px;
+      background: rgba(255, 255, 255, 0.54);
+      animation: rise 260ms ease both;
+    }
+
+    .steps-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      color: var(--sage);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .step-item { position: relative; padding: 0 0 15px 28px; }
+    .step-item:last-child { padding-bottom: 0; }
+    .step-item::before {
+      content: "";
+      position: absolute;
+      top: 8px;
+      bottom: -3px;
+      left: 8px;
+      width: 1px;
+      background: rgba(73, 107, 92, 0.23);
+    }
+    .step-item:last-child::before { display: none; }
+    .step-dot {
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 11px;
+      height: 11px;
+      border: 3px solid #eef4ef;
+      border-radius: 50%;
+      background: var(--sage);
+      box-shadow: 0 0 0 1px rgba(73, 107, 92, 0.3);
+    }
+    .step-title { margin: 0 0 5px; font-size: 12px; font-weight: 750; }
+    .step-action {
+      margin: 0 0 6px;
+      overflow-wrap: anywhere;
+      color: var(--clay);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 10px;
+    }
+    .step-observation {
+      margin: 0;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+    }
+
+    .composer-wrap {
+      padding: 16px 26px 22px;
+      background: linear-gradient(transparent, rgba(247, 244, 237, 0.82) 28%);
+    }
+
+    .composer {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: end;
+      gap: 12px;
+      padding: 12px 12px 12px 17px;
+      border: 1px solid rgba(73, 107, 92, 0.2);
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.88);
+      box-shadow: 0 12px 38px rgba(47, 62, 54, 0.09);
+      transition: border-color 160ms ease, box-shadow 160ms ease;
+    }
+
+    .composer:focus-within {
+      border-color: rgba(73, 107, 92, 0.5);
+      box-shadow: 0 14px 44px rgba(47, 62, 54, 0.13);
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 44px;
+      max-height: 150px;
+      padding: 10px 0 6px;
+      resize: none;
+      border: 0;
+      outline: 0;
+      color: var(--ink);
+      background: transparent;
+      line-height: 1.5;
+    }
+
+    textarea::placeholder { color: #929d97; }
+
+    .send-button {
+      height: 44px;
+      padding: 0 18px;
+      border: 0;
+      border-radius: 14px;
+      color: white;
+      background: var(--sage);
+      font-size: 13px;
+      font-weight: 720;
+      cursor: pointer;
+      transition: transform 160ms ease, opacity 160ms ease;
+    }
+
+    .send-button:hover:not(:disabled) { transform: translateY(-2px); }
+    .send-button:disabled { cursor: not-allowed; opacity: 0.46; }
+    .composer-meta { margin: 8px 4px 0; color: var(--muted); font-size: 10px; text-align: center; }
+
+    @media (max-width: 780px) {
+      .app {
+        width: 100%;
+        height: 100dvh;
+        min-height: 0;
+        margin: 0;
+        grid-template-columns: 1fr;
+        border: 0;
+        border-radius: 0;
+      }
+      .sidebar { display: none; }
+      .chat-header { padding: 14px 16px; }
+      .comparison {
+        grid-template-columns: 1fr;
+        grid-template-rows: repeat(2, minmax(0, 1fr));
+      }
+      .messages { padding: 16px; }
+      .lane-header { padding: 9px 16px; }
+      .composer-wrap { padding: 12px 14px 14px; }
+      .bubble { max-width: 92%; }
+      .compare-label { display: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <aside class="sidebar">
+      <section class="brand">
+        <div class="brand-mark" aria-hidden="true"></div>
+        <p class="eyebrow">Trợ lý tự phản chiếu</p>
+        <h1>Nhân cách<br>thứ 2</h1>
+        <p class="intro">Một không gian nhỏ để gọi tên cảm xúc, nhìn lại thói quen và lắng nghe những phần ít được bộc lộ.</p>
+      </section>
+
+      <section class="suggestions" aria-label="Gợi ý bắt đầu">
+        <h2>Bắt đầu nhẹ nhàng</h2>
+        <button class="prompt-chip" type="button">Ban ngày tôi hòa đồng, nhưng tối lại chỉ muốn ở một mình.</button>
+        <button class="prompt-chip" type="button">Tôi thường suy nghĩ nhiều vào ban đêm.</button>
+        <button class="prompt-chip" type="button">Gợi ý cho tôi một bài tập phản tư ngắn.</button>
+      </section>
+
+      <p class="safety-note">Công cụ này hỗ trợ tự khám phá, không chẩn đoán và không thay thế chăm sóc sức khỏe tâm thần chuyên nghiệp.</p>
+    </aside>
+
+    <section class="chat-panel" aria-label="Cuộc trò chuyện">
+      <header class="chat-header">
+        <div class="status">
+          <span class="status-dot" id="statusDot" aria-hidden="true"></span>
+          <div class="status-copy">
+            <strong id="statusTitle">Đang kết nối</strong>
+            <span id="statusDetail">Kiểm tra mô hình...</span>
+          </div>
+        </div>
+        <span class="compare-label">So sánh song song</span>
+      </header>
+
+      <div class="comparison">
+        <section class="lane" aria-label="Chatbot Baseline">
+          <header class="lane-header">
+            <div class="lane-title"><span class="lane-number">01</span> Chatbot Baseline</div>
+            <span class="lane-meta">1 LLM call · không tool</span>
+          </header>
+          <div class="messages" id="baselineMessages" aria-live="polite">
+            <article class="message assistant">
+              <div class="bubble">
+                <span class="bubble-label">Baseline</span>
+                Trả lời trực tiếp bằng kiến thức của mô hình, không sử dụng công cụ phân tích.
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="lane agent-lane" aria-label="ReAct Agent">
+          <header class="lane-header">
+            <div class="lane-title"><span class="lane-number">02</span> ReAct Agent</div>
+            <span class="lane-meta">Action · Observation</span>
+          </header>
+          <div class="messages" id="agentMessages" aria-live="polite">
+            <article class="message assistant">
+              <div class="bubble">
+                <span class="bubble-label">Agent</span>
+                Chọn công cụ phù hợp, quan sát kết quả thật rồi mới tổng hợp câu trả lời.
+              </div>
+            </article>
+          </div>
+        </section>
+      </div>
+
+      <div class="composer-wrap">
+        <form class="composer" id="chatForm">
+          <textarea id="messageInput" rows="1" maxlength="4000" placeholder="Chia sẻ điều đang ở trong tâm trí bạn..." aria-label="Nội dung chia sẻ"></textarea>
+          <button class="send-button" id="sendButton" type="submit">Gửi</button>
+        </form>
+        <p class="composer-meta">Mỗi lượt là một chia sẻ độc lập. Không nhập thông tin định danh nhạy cảm.</p>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const baselineMessages = document.getElementById('baselineMessages');
+    const agentMessages = document.getElementById('agentMessages');
+    const form = document.getElementById('chatForm');
+    const input = document.getElementById('messageInput');
+    const sendButton = document.getElementById('sendButton');
+    let waiting = false;
+
+    function addMessage(container, text, role, labelText, loading = false) {
+      const article = document.createElement('article');
+      article.className = `message ${role}`;
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble';
+      const label = document.createElement('span');
+      label.className = 'bubble-label';
+      label.textContent = role === 'user' ? 'Bạn' : labelText;
+      bubble.appendChild(label);
+
+      if (loading) {
+        const thinking = document.createElement('span');
+        thinking.className = 'thinking';
+        thinking.setAttribute('aria-label', 'Trợ lý đang suy nghĩ');
+        thinking.innerHTML = '<i></i><i></i><i></i>';
+        bubble.appendChild(thinking);
+      } else {
+        bubble.appendChild(document.createTextNode(text));
+      }
+
+      article.appendChild(bubble);
+      container.appendChild(article);
+      container.scrollTop = container.scrollHeight;
+      return article;
+    }
+
+    function renderSteps(steps) {
+      if (!Array.isArray(steps) || steps.length === 0) return;
+      const wrapper = document.createElement('section');
+      wrapper.className = 'agent-steps';
+      const heading = document.createElement('div');
+      heading.className = 'steps-heading';
+      heading.innerHTML = `<span>Dấu vết thực thi</span><span>${steps.length} bước</span>`;
+      wrapper.appendChild(heading);
+
+      steps.forEach(step => {
+        const item = document.createElement('div');
+        item.className = 'step-item';
+        const dot = document.createElement('span');
+        dot.className = 'step-dot';
+        const title = document.createElement('p');
+        title.className = 'step-title';
+        title.textContent = `Bước ${step.step}: ${step.label || 'Xử lý'}`;
+        item.append(dot, title);
+
+        if (step.tool) {
+          const action = document.createElement('p');
+          action.className = 'step-action';
+          action.textContent = `Action: ${step.tool}(${(step.args || []).join(', ')})`;
+          item.appendChild(action);
+        }
+        if (step.observation) {
+          const observation = document.createElement('p');
+          observation.className = 'step-observation';
+          observation.textContent = `Observation: ${step.observation}`;
+          item.appendChild(observation);
+        }
+        wrapper.appendChild(item);
+      });
+
+      agentMessages.appendChild(wrapper);
+      agentMessages.scrollTop = agentMessages.scrollHeight;
+    }
+
+    function resizeInput() {
+      input.style.height = 'auto';
+      input.style.height = `${Math.min(input.scrollHeight, 150)}px`;
+    }
+
+    function setWaiting(value) {
+      waiting = value;
+      sendButton.disabled = value;
+      input.disabled = value;
+    }
+
+    async function sendMessage(text) {
+      if (!text || waiting) return;
+      addMessage(baselineMessages, text, 'user', 'Bạn');
+      addMessage(agentMessages, text, 'user', 'Bạn');
+      setWaiting(true);
+      const baselineLoading = addMessage(baselineMessages, '', 'assistant', 'Baseline', true);
+      const agentLoading = addMessage(agentMessages, '', 'assistant', 'Agent', true);
+
+      try {
+        const response = await fetch('/api/compare', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text })
+        });
+        const data = await response.json();
+        baselineLoading.remove();
+        agentLoading.remove();
+        if (!response.ok) {
+          const errorText = data.error || 'Không thể kết nối với trợ lý.';
+          addMessage(baselineMessages, errorText, 'assistant', 'Baseline');
+          addMessage(agentMessages, errorText, 'assistant', 'Agent');
+        } else {
+          addMessage(baselineMessages, data.baseline, 'assistant', 'Baseline');
+          renderSteps(data.steps);
+          addMessage(agentMessages, data.agent, 'assistant', 'Agent');
+        }
+      } catch (error) {
+        baselineLoading.remove();
+        agentLoading.remove();
+        const errorText = 'Kết nối đang bị gián đoạn. Bạn thử lại sau một chút nhé.';
+        addMessage(baselineMessages, errorText, 'assistant', 'Baseline');
+        addMessage(agentMessages, errorText, 'assistant', 'Agent');
+      } finally {
+        setWaiting(false);
+        input.focus();
+      }
+    }
+
+    form.addEventListener('submit', event => {
+      event.preventDefault();
+      const text = input.value.trim();
+      if (!text) return;
+      input.value = '';
+      resizeInput();
+      sendMessage(text);
+    });
+
+    input.addEventListener('input', resizeInput);
+    input.addEventListener('keydown', event => {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        form.requestSubmit();
+      }
+    });
+
+    document.querySelectorAll('.prompt-chip').forEach(button => button.addEventListener('click', () => {
+      input.value = button.textContent.trim();
+      resizeInput();
+      input.focus();
+    }));
+
+    fetch('/api/status')
+      .then(response => response.json())
+      .then(data => {
+        document.getElementById('statusTitle').textContent = 'Sẵn sàng lắng nghe';
+        document.getElementById('statusDetail').textContent = `${data.provider} · ${data.model}`;
+      })
+      .catch(() => {
+        document.getElementById('statusTitle').textContent = 'Mất kết nối';
+        document.getElementById('statusDetail').textContent = 'Kiểm tra lại web server';
+        document.getElementById('statusDot').style.background = '#b7745e';
+      });
+  </script>
+</body>
+</html>
